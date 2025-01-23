@@ -1,0 +1,61 @@
+# syntax = docker/dockerfile:experimental
+FROM php:8.4-fpm
+
+# Auto accept terms of service
+ENV ACCEPT_EULA=Y
+
+# Expose default port
+EXPOSE 9000
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Arguments for New Relic (optional)
+ARG NEW_RELIC_APPNAME
+ARG NEW_RELIC_LICENSE_KEY
+ARG NEW_RELIC_DAEMON_ADDRESS=127.0.0.1:31339
+
+# Install system dependencies and PHP extensions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-utils \
+    autoconf \
+    make \
+    musl \
+    g++ \
+    libzip-dev \
+    zlib1g-dev \
+    libpng-dev \
+    supervisor \
+    wget \
+    curl \
+    git \
+    zip \
+    unzip && \
+    docker-php-ext-install -j$(nproc) \
+    bcmath \
+    pdo \
+    pdo_mysql \
+    mysqli \
+    zip \
+    gd && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install XDebug
+RUN pecl install xdebug
+
+# Enable XDebug configuration
+RUN docker-php-ext-enable xdebug
+
+# Copy PHP configuration overrides
+COPY environment/php/confs/php-ini-overrides.ini /usr/local/etc/php/conf.d/99-overrides.ini
+
+# Copy Composer binary
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+
+COPY environment/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+USER 1000
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["php-fpm"]
